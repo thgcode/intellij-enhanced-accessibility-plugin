@@ -2,11 +2,14 @@ package com.github.thgcode.intellijenhancedaccessibilityplugin;
 
 import com.intellij.codeInsight.daemon.impl.DaemonCodeAnalyzerImpl;
 import com.intellij.codeInsight.daemon.impl.HighlightInfo;
+import com.intellij.coverage.CoverageDataManager;
+import com.intellij.coverage.CoverageSuite;
 import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.event.CaretEvent;
 import com.intellij.openapi.editor.event.CaretListener;
+import com.intellij.rt.coverage.data.ProjectData;
 import com.jetbrains.AccessibleAnnouncer;
 import com.jetbrains.JBR;
 import javazoom.jl.decoder.JavaLayerException;
@@ -19,13 +22,14 @@ import java.io.BufferedInputStream;
 import java.util.List;
 
 public class MyCaretPositionListener implements CaretListener {
-    private AccessibleAnnouncer accessibleAnnouncer = JBR.getAccessibleAnnouncer();
+    private final AccessibleAnnouncer accessibleAnnouncer = JBR.getAccessibleAnnouncer();
     private int lastReportedLine;
 
     @Override
     public void caretPositionChanged(@NotNull CaretEvent event) {
         CaretListener.super.caretPositionChanged(event);
         checkLineForProblems(event);
+        checkCoverage(event);
     }
 
     private void checkLineForProblems(CaretEvent event) {
@@ -82,6 +86,33 @@ public class MyCaretPositionListener implements CaretListener {
             play("error");
         }
 
-        accessibleAnnouncer.announce(null, info.getDescription(), AccessibleAnnouncer.ANNOUNCE_WITHOUT_INTERRUPTING_CURRENT_OUTPUT);
+        speak(info.getDescription());
     }
+
+    private void speak(String text) {
+        accessibleAnnouncer.announce(null, text, AccessibleAnnouncer.ANNOUNCE_WITHOUT_INTERRUPTING_CURRENT_OUTPUT);
+    }
+
+        private void checkCoverage(CaretEvent event) {
+            int line = event.getNewPosition().line;
+
+            CoverageDataManager coverageDataManager = CoverageDataManager.getInstance(event.getEditor().getProject());
+
+            for (CoverageSuite suite: coverageDataManager.getSuites()) {
+                ProjectData data = suite.getCoverageData(coverageDataManager);
+
+                if (data != null && data.getClassesCollection() == null) {
+                    continue;
+                }
+
+                data.getClassesCollection().forEach(classData -> {
+                    if (classData.getSource().equals(event.getEditor().getVirtualFile().getName())) {
+                        if (classData.getLineData(line).getHits() <= 0) {
+                            play("notcovered");
+                            speak("Not covered");
+                        }
+                    }
+                });
+            }
+        }
 }
