@@ -64,6 +64,8 @@ public class MyCaretPositionListener implements CaretListener {
                 } catch (JavaLayerException e) {
                     throw new RuntimeException(e);
                 }
+
+                player.close();
             }).start();
         } catch (JavaLayerException e) {
             throw new RuntimeException(e);
