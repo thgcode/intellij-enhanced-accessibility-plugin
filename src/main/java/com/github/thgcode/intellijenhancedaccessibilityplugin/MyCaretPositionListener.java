@@ -101,11 +101,15 @@ public class MyCaretPositionListener implements CaretListener {
             for (CoverageSuite suite: coverageDataManager.getSuites()) {
                 ProjectData data = suite.getCoverageData(coverageDataManager);
 
-                if (data != null && data.getClassesCollection() == null) {
+                if (data == null || data.getClassesCollection() == null) {
+                    speak("Null");
                     continue;
                 }
 
                 data.getClassesCollection().forEach(classData -> {
+                    speak("Source: " + classData.getSource());
+                    speak("Virtual file: " + event.getEditor().getVirtualFile().getName());
+
                     if (classData.getSource().equals(event.getEditor().getVirtualFile().getName())) {
                         if (classData.getLineData(line).getHits() <= 0) {
                             play("notcovered");
