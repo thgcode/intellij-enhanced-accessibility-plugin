@@ -19,6 +19,7 @@ import java.util.List;
 
 public class MyCaretPositionListener implements CaretListener {
     private AccessibleAnnouncer accessibleAnnouncer = JBR.getAccessibleAnnouncer();
+    private int lastReportedLine;
 
     @Override
     public void caretPositionChanged(@NotNull CaretEvent event) {
@@ -28,6 +29,12 @@ public class MyCaretPositionListener implements CaretListener {
 
     private void checkLineForProblems(CaretEvent event) {
         int line = event.getNewPosition().line;
+
+        if (line == lastReportedLine) {
+            return;
+        }
+
+        lastReportedLine = line;
 
         Editor editor = event.getEditor();
 
