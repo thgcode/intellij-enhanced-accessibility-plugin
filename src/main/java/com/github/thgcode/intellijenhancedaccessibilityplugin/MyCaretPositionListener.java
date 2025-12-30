@@ -10,6 +10,7 @@ import com.intellij.openapi.editor.event.CaretListener;
 import com.jetbrains.AccessibleAnnouncer;
 import com.jetbrains.JBR;
 import javazoom.jl.decoder.JavaLayerException;
+import javazoom.jl.player.AudioDevice;
 import javazoom.jl.player.JavaSoundAudioDevice;
 import javazoom.jl.player.Player;
 import org.jetbrains.annotations.NotNull;
@@ -57,15 +58,17 @@ public class MyCaretPositionListener implements CaretListener {
         try {
             BufferedInputStream sound = new BufferedInputStream(getClass().getResourceAsStream(filename + ".mp3"));
 
-            final Player player = new Player(sound, new JavaSoundAudioDevice());
+            final AudioDevice audioDevice = new JavaSoundAudioDevice();
+            final Player player = new Player(sound, audioDevice);
             new Thread(() -> {
                 try {
                     player.play();
                 } catch (JavaLayerException e) {
                     throw new RuntimeException(e);
+                } finally {
+                    player.close();
+                    audioDevice.close();
                 }
-
-                player.close();
             }).start();
         } catch (JavaLayerException e) {
             throw new RuntimeException(e);
