@@ -110,7 +110,7 @@ public class MyCaretPositionListener implements CaretListener {
                     speak("Source: " + classData.getSource());
                     speak("Virtual file: " + event.getEditor().getVirtualFile().getName());
 
-                    if (classData.getSource().equals(event.getEditor().getVirtualFile().getName())) {
+                    if (classData.getSource() != null && classData.getSource().equals(event.getEditor().getVirtualFile().getName())) {
                         if (classData.getLineData(line).getHits() <= 0) {
                             play("notcovered");
                             speak("Not covered");
