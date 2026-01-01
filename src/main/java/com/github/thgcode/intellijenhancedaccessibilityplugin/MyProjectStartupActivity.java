@@ -1,3 +1,5 @@
+// Copyright 2025-2026 Thiago Seus and contributors. Use of this source code is governed by the Apache 2.0 license.
+
 package com.github.thgcode.intellijenhancedaccessibilityplugin;
 
 import com.intellij.openapi.fileEditor.FileEditorManagerListener;
