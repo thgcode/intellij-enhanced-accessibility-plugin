@@ -3,6 +3,7 @@ package com.github.thgcode.intellijenhancedaccessibilityplugin;
 import com.intellij.codeInsight.daemon.impl.DaemonCodeAnalyzerImpl;
 import com.intellij.codeInsight.daemon.impl.HighlightInfo;
 import com.intellij.coverage.CoverageDataManager;
+import com.intellij.coverage.CoverageEngine;
 import com.intellij.coverage.CoverageSuitesBundle;
 import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.editor.Document;
@@ -10,14 +11,12 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.event.CaretEvent;
 import com.intellij.openapi.editor.event.CaretListener;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
+import com.intellij.openapi.module.Module;
+import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiJavaFile;
-import com.intellij.psi.PsiManager;
-import com.intellij.rt.coverage.data.ClassData;
-import com.intellij.rt.coverage.data.LineData;
-import com.intellij.rt.coverage.data.ProjectData;
 import com.jetbrains.AccessibleAnnouncer;
 import com.jetbrains.JBR;
 import javazoom.jl.decoder.JavaLayerException;
@@ -27,7 +26,9 @@ import javazoom.jl.player.Player;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.BufferedInputStream;
+import java.io.File;
 import java.util.List;
+import java.util.Set;
 
 public class MyCaretPositionListener implements CaretListener {
     private final AccessibleAnnouncer accessibleAnnouncer = JBR.getAccessibleAnnouncer();
@@ -127,25 +128,38 @@ public class MyCaretPositionListener implements CaretListener {
             return;
         }
 
-        String primaryClassQualifiedName = getPrimaryQualifiedName(project, vFile);
-
-        if (primaryClassQualifiedName == null) {
-            return;
-        }
-
         CoverageSuitesBundle suitesBundle = CoverageDataManager.getInstance(project).getCurrentSuitesBundle();
         if (suitesBundle == null) {
             return;
         }
 
-        Object coverageData;
-        coverageData = tryGetCoverageData(suitesBundle);
-        boolean isCovered = false;
-        if (coverageData != null) {
-            System.out.println("Getting coverage for: " + line);
-            Integer hits = tryGetHitsForFileAndLine(coverageData, vFile.getPath(), primaryClassQualifiedName, line);
-            isCovered = (hits != null && hits > 0);
+        System.out.println("Trying to get coverage for: " + vFile + " line: " + line);
+
+        Module module = ModuleUtilCore.findModuleForFile(vFile, project);
+
+        if (module == null) {
+            System.out.println("Can't get module!");
+            return;
         }
+
+        CoverageEngine engine = suitesBundle.getCoverageEngine();
+        PsiFile psiFile = PsiDocumentManager.getInstance(project).getPsiFile(document);
+
+        if (psiFile == null) {
+            System.out.println("Can't get PSI file!");
+            return;
+        }
+
+        Set<File> files = engine.getCorrespondingOutputFiles(psiFile, module, suitesBundle);
+        List<Integer> coveredLines = engine.collectSrcLinesForUntouchedFile(files.stream().findFirst().orElseThrow(), suitesBundle);
+
+        if (coveredLines == null || coveredLines.isEmpty()) {
+            System.out.println("Error getting coverage!");
+            return;
+        }
+
+        Integer lineHits = coveredLines.get(line);
+        boolean isCovered = lineHits != null && lineHits > 0;
 
         if (!isCovered) {
             play("notcovered");
@@ -153,68 +167,6 @@ public class MyCaretPositionListener implements CaretListener {
 
         speak(isCovered ? "Covered" : "Not covered");
 
-    }
-
-    private String getPrimaryQualifiedName(Project project, VirtualFile vFile) {
-        PsiFile psiFile = PsiManager.getInstance(project).findFile(vFile);
-        if (psiFile instanceof PsiJavaFile javaFile) {
-            if (javaFile.getClasses().length > 0) {
-                return javaFile.getClasses()[0].getQualifiedName();
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Try to obtain the CoverageData object for the given suites bundle.
-     * This method attempts likely APIs used in 2024.2.x and falls back via reflection.
-     */
-    private Object tryGetCoverageData(CoverageSuitesBundle bundle) {
-        return bundle.getCoverageData();
-    }
-
-    /**
-     * Try several ways to ask the CoverageData object for hits on the given file/line.
-     * Returns null if no information available; otherwise the hit count (0 or positive).
-     *
-     * Common ways:
-     *  - coverageData.getHitsForFile(String path) -> int[] or Integer[] (each index -> hit count)
-     *  - coverageData.getHits(String fileUrl, int line) -> Integer
-     *  - coverageData.getClassData(String className) -> classData.getLineHits() -> int[]
-     */
-    private Integer tryGetHitsForFileAndLine(Object coverageData, String filePath, String fqName, int zeroBasedLine) {
-        if (fqName == null) {
-            return null;
-        }
-
-        System.out.println("Getting coverage for: " + fqName + "Line: " + zeroBasedLine);
-
-        ProjectData data = (ProjectData) coverageData;
-        ClassData classData = data.getClassData(fqName);
-
-        if (classData == null) {
-            return null;
-        }
-
-        int i = 0;
-        for (Object lineDataO: classData.getLines()) {
-            if (lineDataO instanceof LineData lineDataF){
-                System.out.println("" + i + ": " + lineDataF.getHits());
-            } else {
-                System.out.println("" + i + ": " + lineDataO);
-            }
-
-            i++;
-        }
-
-        classData.getLines()
-        LineData lineData = classData.getLineData(zeroBasedLine);
-
-        if (lineData == null) {
-            return null;
-        }
-
-        return lineData.getHits();
     }
 
 }
