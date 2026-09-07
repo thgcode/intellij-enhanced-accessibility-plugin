@@ -27,13 +27,10 @@ public class MyEditorListener implements FileEditorManagerListener {
 
     @Override
     public void selectionChanged(@NotNull FileEditorManagerEvent event) {
-        // Your code here: this method is called when the user switches between already open files
         VirtualFile newFile = event.getNewFile();
         if (newFile != null) {
             System.out.println("Switched to file: " + newFile.getName());
         }
     }
-    // Other methods like fileClosed must also be implemented (can be empty if not needed)
-
 
 }

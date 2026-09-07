@@ -9,6 +9,8 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.event.CaretEvent;
 import com.intellij.openapi.editor.event.CaretListener;
+import com.intellij.openapi.editor.markup.LineMarkerRenderer;
+import com.intellij.openapi.editor.markup.RangeHighlighter;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -107,114 +109,33 @@ public class MyCaretPositionListener implements CaretListener {
     }
 
     private void checkCoverage(CaretEvent event) {
-        int line = event.getNewPosition().line;
-
-        if (line == lastReportedLine) {
-            return;
-        }
-
         Editor editor = event.getEditor();
+        int currentLine = editor.getCaretModel().getLogicalPosition().line;
 
-        Project project = event.getEditor().getProject();
+        for (RangeHighlighter highlighter : editor.getMarkupModel().getAllHighlighters()) {
+            int lineStart = editor.getDocument().getLineNumber(highlighter.getStartOffset());
 
-        if (project == null) {
-            return;
-        }
+            //if (lineStart == currentLine) {
+                LineMarkerRenderer renderer = highlighter.getLineMarkerRenderer();
 
-        Document document = editor.getDocument();
-        VirtualFile vFile = FileDocumentManager.getInstance().getFile(document);
-        if (vFile == null) {
-            return;
-        }
+                if (renderer == null) continue;
 
-        String primaryClassQualifiedName = getPrimaryQualifiedName(project, vFile);
+                String className = renderer.getClass().getName();
+                speak(className);
+                if (className.contains("CoverageLineMarkerRenderer")) {
+                    String rendererString = renderer.toString().toLowerCase();
 
-        if (primaryClassQualifiedName == null) {
-            return;
-        }
-
-        CoverageSuitesBundle suitesBundle = CoverageDataManager.getInstance(project).getCurrentSuitesBundle();
-        if (suitesBundle == null) {
-            return;
-        }
-
-        Object coverageData;
-        coverageData = tryGetCoverageData(suitesBundle);
-        boolean isCovered = false;
-        if (coverageData != null) {
-            System.out.println("Getting coverage for: " + line);
-            Integer hits = tryGetHitsForFileAndLine(coverageData, vFile.getPath(), primaryClassQualifiedName, line + 1);
-            isCovered = (hits != null && hits > 0);
-        }
-
-        if (!isCovered) {
-            play("notcovered");
-        }
-
-        speak(isCovered ? "Covered" : "Not covered");
-
-    }
-
-    private String getPrimaryQualifiedName(Project project, VirtualFile vFile) {
-        PsiFile psiFile = PsiManager.getInstance(project).findFile(vFile);
-        if (psiFile instanceof PsiJavaFile javaFile) {
-            if (javaFile.getClasses().length > 0) {
-                return javaFile.getClasses()[0].getQualifiedName();
+                    if (rendererString.contains("full") || rendererString.contains("green")) {
+                        speak("Covered");
+                    } else if (rendererString.contains("none") || rendererString.contains("red")) {
+                        play("notcovered");
+                        speak("Not covered");
+                    } else if (rendererString.contains("partial") || rendererString.contains("yellow")) {
+                        play("notcovered");
+                        speak("Partial coverage");
+                    }
+                //}
             }
         }
-        return null;
     }
-
-    /**
-     * Try to obtain the CoverageData object for the given suites bundle.
-     * This method attempts likely APIs used in 2024.2.x and falls back via reflection.
-     */
-    private Object tryGetCoverageData(CoverageSuitesBundle bundle) {
-        return bundle.getCoverageData();
-    }
-
-    /**
-     * Try several ways to ask the CoverageData object for hits on the given file/line.
-     * Returns null if no information available; otherwise the hit count (0 or positive).
-     *
-     * Common ways:
-     *  - coverageData.getHitsForFile(String path) -> int[] or Integer[] (each index -> hit count)
-     *  - coverageData.getHits(String fileUrl, int line) -> Integer
-     *  - coverageData.getClassData(String className) -> classData.getLineHits() -> int[]
-     */
-    private Integer tryGetHitsForFileAndLine(Object coverageData, String filePath, String fqName, int oneBasedLine) {
-        if (fqName == null) {
-            return null;
-        }
-
-        System.out.println("Getting coverage for: " + fqName + "Line: " + oneBasedLine);
-
-        ProjectData data = (ProjectData) coverageData;
-        ClassData classData = data.getClassData(fqName);
-
-        if (classData == null) {
-            return null;
-        }
-
-        int i = 0;
-        for (Object lineDataO: classData.getLines()) {
-            if (lineDataO instanceof LineData lineDataF){
-                System.out.println("" + i + ": " + lineDataF.getHits());
-            } else {
-                System.out.println("" + i + ": " + lineDataO);
-            }
-
-            i++;
-        }
-
-
-        LineData lineData = classData.getLineData(oneBasedLine);
-
-        if (lineData == null) {
-            return null;
-        }
-
-        return lineData.getHits();
-    }
-
 }
