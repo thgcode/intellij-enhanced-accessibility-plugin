@@ -18,9 +18,7 @@ public class MyEditorListener implements FileEditorManagerListener {
 
     @Override
     public void fileOpened(@NotNull FileEditorManager source, @NotNull VirtualFile file) {
-        // Your code here: this method is called when a new file is opened
         System.out.println("File opened: " + file.getName());
-        // You can get the editor using source.getSelectedTextEditor() or other methods
         Editor editor = source.getSelectedTextEditor();
         editor.getCaretModel().addCaretListener(new MyCaretPositionListener());
     }
